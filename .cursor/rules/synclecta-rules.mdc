@@ -1,0 +1,263 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Synclecta Development Rules
+
+## 📁 Quick Navigation
+- **[PROJECT_INDEX.md](mdc:PROJECT_INDEX.md)** - Central project navigation hub
+- **[PROJECT_ARCHITECTURE.md](mdc:PROJECT_ARCHITECTURE.md)** - Complete technical architecture
+- **[README.md](mdc:README.md)** - Project overview and quick start
+- **[.cursor/rules/project-implementation.mdc](mdc:.cursor/rules/project-implementation.mdc)** - 28-week implementation plan
+
+## Project Overview
+- Laravel-based composer package ecosystem
+- Centralized e-commerce data management
+- Multi-platform integration (Shopify, BigCommerce, Magento 2)
+- Custom API and webhook flow builder
+- Role-based access control system
+
+## Development Standards
+
+### Laravel Best Practices
+- Follow Laravel naming conventions and PSR standards
+- Use Laravel's built-in features (Eloquent, Blade, Artisan)
+- Implement proper model relationships and service container
+- Use Laravel's directory structure and service classes
+- Implement repository pattern for data access
+
+### Code Quality (95%+ before delivery)
+- Verify code 5 times before presenting
+- Follow SOLID principles and dependency injection
+- Write comprehensive tests (90%+ coverage)
+- Use proper validation and sanitization
+- Implement proper error handling and logging
+
+### Package Development
+- Use composer for package management
+- Implement PSR-4 autoloading standard
+- Create comprehensive package documentation
+- Include unit tests for all packages
+- Use Laravel's service container bindings
+
+## Docker Development Environment
+
+### Docker Compose Setup
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: synclecta_app
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+      - ./docker/app/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - synclecta
+
+  nginx:
+    image: nginx:alpine
+    container_name: synclecta_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - synclecta
+
+  db:
+    image: mysql:8.0
+    container_name: synclecta_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: synclecta
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: secret
+      MYSQL_USER: synclecta
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - synclecta
+
+  redis:
+    image: redis:alpine
+    container_name: synclecta_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - synclecta
+
+  queue:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: synclecta_queue
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+    command: php artisan queue:work
+    networks:
+      - synclecta
+
+networks:
+  synclecta:
+    driver: bridge
+
+volumes:
+  dbdata:
+```
+
+### Docker Setup Steps
+1. **Create Docker Directory Structure:**
+   ```bash
+   mkdir -p docker/{app,nginx/conf.d}
+   ```
+
+2. **Create App Dockerfile:**
+   ```dockerfile
+   # docker/app/Dockerfile
+   FROM php:8.2-fpm
+   
+   RUN apt-get update && apt-get install -y \
+       git \
+       curl \
+       libpng-dev \
+       libonig-dev \
+       libxml2-dev \
+       zip \
+       unzip
+   
+   RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+   
+   COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+   
+   WORKDIR /var/www
+   
+   RUN chown -R www-data:www-data /var/www
+   ```
+
+3. **Create Nginx Configuration:**
+   ```nginx
+   # docker/nginx/conf.d/app.conf
+   server {
+       listen 80;
+       index index.php index.html;
+       error_log  /var/log/nginx/error.log;
+       access_log /var/log/nginx/access.log;
+       root /var/www/public;
+   
+       location ~ \.php$ {
+           try_files $uri =404;
+           fastcgi_split_path_info ^(.+\.php)(/.+)$;
+           fastcgi_pass app:9000;
+           fastcgi_index index.php;
+           include fastcgi_params;
+           fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+           fastcgi_param PATH_INFO $fastcgi_path_info;
+       }
+   
+       location / {
+           try_files $uri $uri/ /index.php?$query_string;
+           gzip_static on;
+       }
+   }
+   ```
+
+4. **Environment Setup:**
+   ```bash
+   # Copy environment file
+   cp .env.example .env
+   
+   # Update .env for Docker
+   DB_HOST=db
+   DB_DATABASE=synclecta
+   DB_USERNAME=synclecta
+   DB_PASSWORD=secret
+   REDIS_HOST=redis
+   REDIS_PASSWORD=null
+   ```
+
+5. **Docker Commands:**
+   ```bash
+   # Build and start containers
+   docker compose up -d --build
+   
+   # Install dependencies
+   docker compose exec app composer install
+   
+   # Generate application key
+   docker compose exec app php artisan key:generate
+   
+   # Run migrations
+   docker compose exec app php artisan migrate
+   
+   # Install npm dependencies (if using frontend)
+   docker compose exec app npm install
+   ```
+
+## API Development Standards
+
+### RESTful API Design
+- Use Laravel API Resources for response formatting
+- Implement proper HTTP status codes
+- Use API versioning (v1, v2, etc.)
+- Implement request validation using Form Requests
+- Use API middleware for authentication
+
+### Security Implementation
+- Implement OAuth 2.0 for authentication
+- Use JWT tokens for API authentication
+- Add API rate limiting and throttling
+- Implement proper CORS policies
+- Use Laravel Sanctum for API authentication
+
+## E-commerce Integration Standards
+
+### Platform Connectors
+- Use official SDKs for Shopify, BigCommerce, and Magento 2
+- Implement webhook handling for real-time data sync
+- Use queue systems for background processing
+- Implement retry mechanisms for failed operations
+- Maintain data consistency across platforms
+
+### Data Management
+- Centralized data warehouse design
+- Real-time synchronization engine
+- Data transformation layer
+- Conflict resolution strategies
+- Audit logging system
+
+## Testing Strategy
+- Write unit tests for all classes
+- Implement integration tests for APIs
+- Use feature tests for user workflows
+- Mock external API calls
+- Maintain 90%+ code coverage
+- Use PHPUnit and Pest for testing
+
+## Performance Requirements
+- API response time < 200ms
+- Handle 1000+ concurrent users
+- Process 10,000+ webhooks per hour
+- 99.9% uptime
+- Scalable architecture design
+
+## Security Standards
+- Implement proper input validation
+- Use Laravel's built-in security features
+- Encrypt sensitive data
+- Implement proper CORS policies
+- Use HTTPS for all communications
+- Regular security audits and penetration testing
